@@ -48,8 +48,7 @@ st.markdown("---")
 with st.sidebar:
     st.header("Node Configuration")
     st.success("Local Environment Active")
-    st.info(f"Local API: {settings.LOCAL_API_BASE_URL}")
-
+    
     artifact_status = get_backend_artifact_status()
     if artifact_status and artifact_status.get("model_present"):
         model_file = artifact_status.get("model_file")
