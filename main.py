@@ -144,7 +144,7 @@ def reset_node():
 
 
 @app.post("/evaluate")
-def evaluate_model(sample_size: int = 50):
+def evaluate_model(sample_size: int | None = None, sample_ratio: float = 0.75):
     """Run local evaluation against the latest downloaded global model."""
     active_global_model_path, active_global_model_version = get_latest_global_model_path(settings.MODEL_PATH)
     global_scaler_path = os.path.join(settings.MODEL_PATH, "global_scaler.pkl")
@@ -163,7 +163,15 @@ def evaluate_model(sample_size: int = 50):
         X = df.drop("cardio", axis=1)
         y = df["cardio"]
 
-        safe_sample_size = min(max(sample_size, 1), len(df)) if len(df) > 0 else 0
+        if len(df) == 0:
+            safe_sample_size = 0
+        elif sample_size is not None:
+            safe_sample_size = min(max(sample_size, 1), len(df))
+        else:
+            ratio = min(max(sample_ratio, 0.0), 1.0)
+            safe_sample_size = int(round(len(df) * ratio))
+            safe_sample_size = min(max(safe_sample_size, 1), len(df))
+
         if safe_sample_size == 0:
             raise HTTPException(status_code=400, detail="Test dataset is empty.")
 

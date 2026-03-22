@@ -110,9 +110,9 @@ st.markdown("<br>", unsafe_allow_html=True)
 # --- Performance & Training Dashboards ---
 st.write("### Evaluate Model")
 
-if st.button("Run Initial Test (50 samples)"):
+if st.button("Run Initial Test (75% samples)"):
     try:
-        response = requests.post(f"{settings.LOCAL_API_BASE_URL}/evaluate", params={"sample_size": 50})
+        response = requests.post(f"{settings.LOCAL_API_BASE_URL}/evaluate", params={"sample_ratio": 0.75})
         if response.status_code == 200:
             st.session_state['initial_metrics'] = response.json()
         else:
@@ -122,7 +122,7 @@ if st.button("Run Initial Test (50 samples)"):
         st.error("Could not connect to the local API. Is FastAPI running?")
         
 if 'initial_metrics' in st.session_state:
-    st.write("**Evaluation Metrics (50 samples):**")
+    st.write("**Evaluation Metrics (75% of test samples):**")
     st.table(pd.DataFrame([st.session_state['initial_metrics']]))
 
 st.write("### Retrain Local Model")
