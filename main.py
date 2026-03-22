@@ -6,6 +6,9 @@ import os
 import glob
 import json
 import re
+import io
+import zipfile
+import requests
 import joblib
 import pandas as pd
 import numpy as np
@@ -72,6 +75,54 @@ def get_latest_global_model_path(model_dir: str):
         return None, None
 
     return latest_path, latest_version
+
+
+@app.get("/artifact-status")
+def get_artifact_status():
+    """Return backend-local model/scaler availability for dashboard status display."""
+    active_global_model_path, active_global_model_version = get_latest_global_model_path(settings.MODEL_PATH)
+    global_scaler_path = os.path.join(settings.MODEL_PATH, "global_scaler.pkl")
+    return {
+        "model_present": active_global_model_path is not None,
+        "model_file": os.path.basename(active_global_model_path) if active_global_model_path else None,
+        "model_version": active_global_model_version if active_global_model_path else None,
+        "scaler_present": os.path.exists(global_scaler_path),
+    }
+
+
+@app.post("/sync-global")
+def sync_global_package():
+    """Download and extract latest global package into backend-local model path."""
+    try:
+        response = requests.get(f"{settings.CENTRAL_SERVER_URL}/global/package", timeout=30)
+    except requests.exceptions.RequestException as e:
+        raise HTTPException(status_code=502, detail=f"Could not reach central server: {e}")
+
+    if response.status_code != 200:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Failed to fetch global package from central server. Status code: {response.status_code}",
+        )
+
+    try:
+        os.makedirs(settings.MODEL_PATH, exist_ok=True)
+        with zipfile.ZipFile(io.BytesIO(response.content)) as zip_file:
+            zip_file.extractall(settings.MODEL_PATH)
+    except zipfile.BadZipFile:
+        raise HTTPException(status_code=502, detail="Central package is not a valid ZIP file.")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to store global package: {e}")
+
+    active_global_model_path, active_global_model_version = get_latest_global_model_path(settings.MODEL_PATH)
+    global_scaler_path = os.path.join(settings.MODEL_PATH, "global_scaler.pkl")
+
+    return {
+        "status": "success",
+        "message": "Global model package downloaded and stored on backend.",
+        "model_file": os.path.basename(active_global_model_path) if active_global_model_path else None,
+        "model_version": active_global_model_version if active_global_model_path else None,
+        "scaler_present": os.path.exists(global_scaler_path),
+    }
 
 @app.get("/", response_model=HealthCheck)
 def root():

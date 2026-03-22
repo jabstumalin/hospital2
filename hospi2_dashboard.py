@@ -5,10 +5,6 @@ Interactive, non-linear dashboard for model synchronization, evaluation, and tes
 import streamlit as st
 import pandas as pd
 import requests
-import os
-import zipfile
-import io
-import re
 from config import settings
 
 st.set_page_config(
@@ -19,27 +15,14 @@ st.set_page_config(
 
 # --- Helper Functions ---
 
-def get_latest_global_model_path(model_dir: str):
-    """Return (path, version) for latest main_model_vN.pkl found in model_dir."""
-    latest_version = -1
-    latest_path = None
-    pattern = re.compile(r"^main_model_v(\d+)\.pkl$")
-
-    if not os.path.isdir(model_dir):
-        return None, None
-
-    for name in os.listdir(model_dir):
-        match = pattern.match(name)
-        if match:
-            version = int(match.group(1))
-            if version > latest_version:
-                latest_version = version
-                latest_path = os.path.join(model_dir, name)
-
-    if latest_path is None:
-        return None, None
-
-    return latest_path, latest_version
+def get_backend_artifact_status():
+    try:
+        response = requests.get(f"{settings.LOCAL_API_BASE_URL}/artifact-status", timeout=5)
+        if response.status_code == 200:
+            return response.json()
+    except requests.exceptions.RequestException:
+        pass
+    return None
 
 def check_server_status(url):
     try:
@@ -67,11 +50,13 @@ with st.sidebar:
     st.success("Local Environment Active")
     st.info(f"Local API: {settings.LOCAL_API_BASE_URL}")
 
-    active_global_model_path, active_global_model_version = get_latest_global_model_path(settings.MODEL_PATH)
-    if active_global_model_path:
-        st.caption(f"Central model in use: {os.path.basename(active_global_model_path)} (v{active_global_model_version})")
+    artifact_status = get_backend_artifact_status()
+    if artifact_status and artifact_status.get("model_present"):
+        model_file = artifact_status.get("model_file")
+        model_version = artifact_status.get("model_version")
+        st.caption(f"Central model in use: {model_file} (v{model_version})")
     else:
-        st.caption("Central model in use: none downloaded yet")
+        st.caption("Central model in use: none downloaded on backend yet")
     
     st.markdown("---")
     st.header("Danger Zone")
@@ -101,22 +86,25 @@ with col_sync:
     if st.button("Retrieve Global Model from Server", type="primary", use_container_width=True):
         with st.spinner("Downloading global model..."):
             try:
-                response = requests.get(f"{settings.CENTRAL_SERVER_URL}/global/package")
+                response = requests.post(f"{settings.LOCAL_API_BASE_URL}/sync-global", timeout=60)
                 if response.status_code == 200:
-                    os.makedirs(settings.MODEL_PATH, exist_ok=True)
-                    zip_file = zipfile.ZipFile(io.BytesIO(response.content))
-                    zip_file.extractall(settings.MODEL_PATH)
-                    st.success("Global model successfully downloaded and stored locally!")
+                    payload = response.json()
+                    st.success(payload.get("message", "Global model package synced on backend."))
+                    if not payload.get("scaler_present", False):
+                        st.warning("Package synced, but global_scaler.pkl was not found on backend.")
                 else:
-                    st.error(f"Failed to fetch package. Status code: {response.status_code}")
-            except Exception as e:
+                    detail = response.json().get("detail", "Unknown error")
+                    st.error(f"Sync failed: {detail}")
+            except requests.exceptions.RequestException as e:
                 st.error(f"Connection error: {e}")
 
-active_global_model_path, active_global_model_version = get_latest_global_model_path(settings.MODEL_PATH)
-if active_global_model_path:
-    st.info(f"Using central model: {os.path.basename(active_global_model_path)} (v{active_global_model_version})")
+artifact_status = get_backend_artifact_status()
+if artifact_status and artifact_status.get("model_present"):
+    st.info(
+        f"Using central model: {artifact_status.get('model_file')} (v{artifact_status.get('model_version')})"
+    )
 else:
-    st.warning("No central model found locally. Click 'Retrieve Global Model from Server' to download one.")
+    st.warning("No central model found on backend. Click 'Retrieve Global Model from Server' to sync one.")
 
 st.markdown("<br>", unsafe_allow_html=True)
 
