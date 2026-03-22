@@ -65,7 +65,7 @@ st.markdown("---")
 with st.sidebar:
     st.header("Node Configuration")
     st.success("Local Environment Active")
-    st.info(f"Local API: http://localhost:{settings.API_PORT}")
+    st.info(f"Local API: {settings.LOCAL_API_BASE_URL}")
 
     active_global_model_path, active_global_model_version = get_latest_global_model_path(settings.MODEL_PATH)
     if active_global_model_path:
@@ -77,7 +77,7 @@ with st.sidebar:
     st.header("Danger Zone")
     if st.button("Reset All Local Models", use_container_width=True):
         try:
-            response = requests.post(f"http://127.0.0.1:{settings.API_PORT}/reset")
+            response = requests.post(f"{settings.LOCAL_API_BASE_URL}/reset")
             if response.status_code == 200:
                 data = response.json()
                 # Clear session state metrics
@@ -125,7 +125,7 @@ st.write("### Evaluate Model")
 
 if st.button("Run Initial Test (50 samples)"):
     try:
-        response = requests.post(f"http://127.0.0.1:{settings.API_PORT}/evaluate", params={"sample_size": 50})
+        response = requests.post(f"{settings.LOCAL_API_BASE_URL}/evaluate", params={"sample_size": 50})
         if response.status_code == 200:
             st.session_state['initial_metrics'] = response.json()
         else:
@@ -142,7 +142,7 @@ st.write("### Retrain Local Model")
 
 if st.button("Retrain with Hospital-2 Data"):
     try:
-        response = requests.post(f"http://127.0.0.1:{settings.API_PORT}/retrain")
+        response = requests.post(f"{settings.LOCAL_API_BASE_URL}/retrain")
         if response.status_code == 200:
             payload = response.json()
             st.success(payload.get("message", "Retraining completed."))

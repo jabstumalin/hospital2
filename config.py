@@ -10,6 +10,9 @@ class Settings(BaseSettings):
     
     # Central Server Info (useful for node communication)
     CENTRAL_SERVER_URL: str = "https://central-server-production-b21a.up.railway.app"
+
+    # Hospital-2 local backend API (FastAPI)
+    LOCAL_API_BASE_URL: str = "https://hospital2-qbao.onrender.com"
     
     # Streamlit Configuration
     STREAMLIT_PORT: int = 8503  # Changed to 8503 to avoid conflicting with central server
